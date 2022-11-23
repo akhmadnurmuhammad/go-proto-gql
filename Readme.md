@@ -1,5 +1,8 @@
 [![codecov](https://codecov.io/gh/danielvladco/go-proto-gql/branch/refactor-and-e2e-tests/graph/badge.svg?token=L3N8kUGpGV)](https://codecov.io/gh/danielvladco/go-proto-gql)
 
+THIS REPO FORKED FROM https://github.com/danielvladco/go-proto-gql
+Big thanks for him
+
 Protoc plugins for generating graphql schema and go graphql code
 
 If you use micro-service architecture with grpc for back-end and graphql api gateway for front-end, you will find yourself
