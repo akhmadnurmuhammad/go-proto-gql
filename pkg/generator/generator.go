@@ -106,6 +106,28 @@ func generateFile(file *desc.FileDescriptor, schema *SchemaDescriptor) error {
 	return nil
 }
 
+func (s *SchemaDescriptor) injectDirectives(dirList []*gqlpb.Directive) {
+	for _, dir := range dirList {
+		if s.Directives[*dir.Name] != nil {
+			continue
+		}
+		arguments := ast.ArgumentDefinitionList{}
+		for _, argdir := range dir.Parameter {
+			argument := &ast.ArgumentDefinition{Name: *argdir.Name, Type: ast.NamedType(argdir.Type.String(), &ast.Position{})}
+			arguments = append(arguments, argument)
+		}
+
+		varDir := &ast.DirectiveDefinition{
+			Name:      *dir.Name,
+			Arguments: arguments,
+			Position:  &ast.Position{Src: &ast.Source{BuiltIn: false}},
+			Locations: []ast.DirectiveLocation{ast.LocationFieldDefinition},
+		}
+		s.Directives[*dir.Name] = varDir
+	}
+	return
+}
+
 type SchemaDescriptorList []*SchemaDescriptor
 
 func (s SchemaDescriptorList) AsGraphql() (astSchema []*ast.Schema) {
@@ -451,6 +473,52 @@ type ServiceAndMethod struct {
 	rpc *descriptor.MethodDescriptorProto
 }
 
+func (r *RootDefinition) Directive(svc *descriptor.ServiceDescriptorProto, rpc *descriptor.MethodDescriptorProto) (dirList ast.DirectiveList) {
+	rpcOpts := GraphqlMethodOptions(rpc.GetOptions())
+	svcOpts := GraphqlServiceOptions(svc.GetOptions())
+
+	if rpcOpts != nil && rpcOpts.Directives != nil {
+		// Check if Directive has Input params example Auth(param1: String)
+		dirList = createDirectiveWithParams(rpcOpts.Directives)
+
+	} else if svcOpts != nil && svcOpts.Directives != nil {
+		dirList = createDirectiveWithParams(svcOpts.Directives)
+	}
+
+	return
+}
+
+func createDirectiveWithParams(directives []*gqlpb.Directive) (dirList ast.DirectiveList) {
+	// Check if Directive has Input params example Auth(param1: String)
+
+	for _, directive := range directives {
+		dir := &ast.Directive{}
+		if directive.Parameter == nil {
+			dir = &ast.Directive{Name: *directive.Name}
+		} else {
+			argList := ast.ArgumentList{}
+			for _, param := range directive.Parameter {
+				arg := &ast.Argument{Name: *param.Name, Value: &ast.Value{Kind: ast.ValueKind(*param.Type), Raw: *param.Value}}
+				argList = append(argList, arg)
+			}
+
+			dir = &ast.Directive{
+				Name:      *directive.Name,
+				Arguments: argList,
+				Definition: &ast.DirectiveDefinition{
+					Name: *directive.Name,
+					Arguments: ast.ArgumentDefinitionList{
+						&ast.ArgumentDefinition{Name: *directive.Name},
+					},
+				},
+			}
+		}
+
+		dirList = append(dirList, dir)
+	}
+	return dirList
+}
+
 func (r *RootDefinition) UniqueName(svc *descriptor.ServiceDescriptorProto, rpc *descriptor.MethodDescriptorProto) (name string) {
 	rpcOpts := GraphqlMethodOptions(rpc.GetOptions())
 	svcOpts := GraphqlServiceOptions(svc.GetOptions())
@@ -491,9 +559,10 @@ func (r *RootDefinition) addMethod(svc *desc.ServiceDescriptor, rpc *desc.Method
 
 	if in != nil && (in.Descriptor != nil && !IsEmpty(in.Descriptor.(*desc.MessageDescriptor)) || in.Definition.Kind == ast.Scalar) {
 		args = append(args, &ast.ArgumentDefinition{
-			Name:     "in",
-			Type:     ast.NamedType(in.Name, &ast.Position{}),
-			Position: &ast.Position{},
+			Name:       "in",
+			Type:       ast.NamedType(in.Name, &ast.Position{}),
+			Position:   &ast.Position{},
+			Directives: r.Directive(svc.AsServiceDescriptorProto(), rpc.AsMethodDescriptorProto()),
 		})
 	}
 	objType := ast.NamedType("Boolean", &ast.Position{})
@@ -518,6 +587,7 @@ func (r *RootDefinition) addMethod(svc *desc.ServiceDescriptor, rpc *desc.Method
 			Arguments:   args,
 			Type:        objType,
 			Position:    &ast.Position{},
+			Directives:  r.Directive(svc.AsServiceDescriptorProto(), rpc.AsMethodDescriptorProto()),
 		},
 		input:  in,
 		output: out,
@@ -612,6 +682,14 @@ func (s *SchemaDescriptor) createField(field *desc.FieldDescriptor, obj *ObjectD
 				Definition: directive,
 			}}
 		}
+	}
+	if fieldOpts != nil && fieldOpts.Parameters != nil {
+		argList := ast.ArgumentDefinitionList{}
+		for _, param := range fieldOpts.Parameters {
+			arg := &ast.ArgumentDefinition{Name: *param.Name, Type: ast.NamedType(param.Type.String(), &ast.Position{})}
+			argList = append(argList, arg)
+		}
+		fieldAst.Arguments = argList
 	}
 	switch field.GetType() {
 	case descriptor.FieldDescriptorProto_TYPE_DOUBLE,

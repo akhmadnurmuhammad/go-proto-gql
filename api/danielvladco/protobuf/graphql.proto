@@ -34,12 +34,15 @@ message Field {
     optional string dirs = 3;
     optional bool ignore = 4;
     optional string name = 5;
+    repeated Parameter parameters = 6;
+    repeated Directive directives = 7;
 }
 
 message Rpc {
     optional Type type = 1;
     optional bool ignore = 2;
     optional string name = 3;
+    repeated Directive directives = 4;
 }
 
 message Svc {
@@ -47,6 +50,30 @@ message Svc {
     optional bool ignore = 2;
     optional string name = 3;
     optional Upstream upstream = 4;
+    repeated Directive directives = 5;
+}
+
+message Directive {
+    required string name = 1;
+    repeated Parameter parameter = 2;
+}
+message Parameter {
+    required string name = 1;
+    required ParameterType type = 2;
+    optional string value = 3;
+}
+
+enum ParameterType {
+    Variable = 0;
+    String = 1;
+    Integer = 2;
+    Float = 3;
+    Block = 4;
+    Boolean = 5;
+    Null = 6;
+    Enum = 7;
+    List = 8;
+    Object = 9;
 }
 
 enum Type {

@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package test;
+
+option go_package = "test/test";
+import "api/danielvladco/protobuf/graphql.proto";
+
+message Hello {
+    string test = 1;
+    string asdf = 2;
+    string qwertt = 3;
+
+}
+
+service Query {
+    rpc Mutate1 (Hello) returns (Hello) {
+        option (danielvladco.protobuf.graphql.rpc) = {
+            type: MUTATION, 
+            directives:[
+                {
+                    name: "HasPermission",
+                    parameter: [
+                        {
+                            name: "Access",
+                            type: String, 
+                            value: "OPERATIONS"
+                        }
+                    ]
+                }
+            ]
+        };
+    }
+}
